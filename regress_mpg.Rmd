@@ -1,0 +1,349 @@
+---
+title: "Effect of Car Design Aspects on Fuel Economy"
+author: Jonathan Owen
+date: July 26th 2015
+output: 
+  pdf_document:
+    latex_engine: xelatex
+mainfont: Georgia
+fontsize: 10pt
+geometry: margin = 0.75in
+---
+```{r, echo = FALSE, message = FALSE}
+library(ggplot2)
+library(gridExtra)
+```
+ 
+
+## Executive Summary
+The fuel economy of a car should be related to some of its design aspects. The 
+following study uses reported values of fuel economy and these design aspects to 
+establish relationships in the form of linear regression models.  Horsepower,
+weight, and time to travel $\frac{1}{4}$ mile are found to be the most useful 
+predictors of fuel consumption.  
+
+## Data
+The `mtcars` dataset contains observations of fuel economy and 10 design aspects 
+reported in _Motor Trend_ magazine for 32 car models available in the United 
+States between 1973 and 1974. The variables are described in the table below.
+
+------ | ----------------------------- | -----  | ----------------------------- | -----  | ----------------------------- |  
+`mpg`  | fuel economy, miles/US gallon | `drat` | rear axle ratio               | `am`   | transmission                  |              
+`cyl`  | number of cylinders           | `wt`   | weight, 1000 lb               | `gear` | number of forward gears                |                               |                
+`disp` | displacement, cubic inches    | `qsec` | 1/4 mile time, seconds        | `carb` | number of carburettors               |                
+`hp`   | gross horsepower              | `vs`   | V or straight cylinder        |        |   
+
+Exploratory data analysis identified several possible predictors as well 
+as issues prior to constructing parsimonious models for fuel economy. A panel of 
+scatterplots and correlations for all variable pairs is included as Figure 1 in 
+the appendix. For reasons explained in the **Initial Model** section, it is 
+easier to understand the model in terms of fuel consumption `gpm` in US gallons 
+per mile rather than fuel economy `mpg`.  The two quantities are related by each 
+being the reciprocal of the other. Plots of fuel consumption against the 10 design 
+aspect variables show strong negative correlations (absolute values 0.78 - 0.87) 
+with displacement, horsepower, and weight. It is also clear that these variables 
+are positively correlated with each other (0.66 - 0.89), which may cause 
+problems if they are all are used in the model. The number of cylinders falls 
+into this same group, but is not an initial choice for the model because it is 
+not continuous and is correlated with displacement (0.90) as would be expected.
+
+
+## Initial Model
+The exploratory data analysis can be supplemented with some theory to create an 
+initial model.
+The work done by a moving car during a time period $\Delta t$, such as `qsec` in 
+the dataset, is $P(t)\Delta t$ where $P(t)$ is the power at time $t$. Although 
+the exact form of $P(t)$ is not reported for these cars, it should be 
+proportional to the gross horsepower, which *is* available. The work done should 
+be proportional to both `hp` and `qsec`.  
+The energy required to do this work comes from the fuel and is proportional to 
+the volume of fuel used. Not all of this energy goes into driving the car. 
+There are losses that can be grouped into an efficiency factor $\eta$, which 
+should depend on some of the design aspects.  The following relationship 
+should be true for a car travelling $\frac{1}{4}$ mile  
+$$\frac{\eta}{4\cdot\mathtt{mpg}} \propto \mathtt{hp}\cdot\mathtt{qsec}$$ 
+or $$\frac{\eta\cdot\mathtt{gpm}}{4} \propto \mathtt{hp}\cdot\mathtt{qsec}$$  
+
+The inital model is a fit of `gpm` against the interaction `hp:qsec`. 
+$$\mathtt{gpm}_{i} = \beta_{0} + \beta_{1}\mathtt{hp}_{i}\cdot\mathtt{qsec}_{i} + \epsilon_{i}$$
+The intercept $\beta_{0}$ is not significant ($p = 0.32$). $R^2$ increases from 
+0.69 to 0.96 when the intercept is removed from the model.
+
+```{r, echo = FALSE}
+save_cols <- names(mtcars)
+c <- mtcars
+nice_names <- c("cylinders", "displacement", "horsepower", 
+                "rear axle\nratio", "weight", "1/4 mile\ntime", 
+                "cylinder\nconfiguration", "transmission", "gears", 
+                "carburettors", "fuel\nconsumption")
+c$gpm <- 1/c$mpg
+c$idi <- 1/c$disp
+c$ihp <- 1/c$hp
+c$iqs <- 1/c$qsec
+c$iwt <- 1/c$wt
+
+
+gpm1 <- lm(data = c, gpm ~ hp:qsec)
+gpm0 <- lm(data = c, gpm ~ hp:qsec -1)
+```
+
+## Model Improvement by Residuals Adjustment
+Residuals adjustment were used to find any additional predictors---ones that are 
+rolled into the efficiency factor $\eta$. Residuals from fitting `gpm` and the 
+remaining car design aspects using `hp:qsec` are plotted against each 
+other.  These are included in Figure 2.  High correlation in the residuals plots 
+identifies predictors that will best fit variation that remains from the initial 
+model. Of the unused predictors, `wt` has the highest correlation (0.81) with 
+`gpm` after removing the effects of `hp` and `qsec`.  A second model that
+included `wt` as a predictor 
+$$\mathtt{gpm}_{i} = \beta_{1}\mathtt{hp}_{i}\cdot\mathtt{qsec}_{i} + \beta_{2}\mathtt{wt}_{i} + \epsilon_{i}$$
+```{r, echo = FALSE}
+gpm2 <- lm(data = c, gpm ~ hp:qsec + wt -1)
+
+```
+produces a model with significant coefficients $\beta_{1} = 5.92 \times 10^{-6}$ 
+and  $\beta_{2} = 1.20 \times 10^{-2}$ and $R^2$ of 0.99. 
+
+## ANOVA and Residuals Analysis
+Analysis of variance ANOVA on the nested models indicates that reduction of the 
+sum of the residual squared from 0.0042 to 0.0041 by including `wt` is 
+significant ($p = 1.3 \times 10^{-8}$).  
+
+Lastly, four plots of the residuals can be used to assess the fit. These are
+included in Figure 3. 
+In the plot of residuals vs. fitted values points should be randomly distributed 
+around a horizontal line corresponding to zero residual. This is approximately 
+the case in Figure 2 although there is some deviation at higher fitted values. 
+Similar behavior is expected for standardized residuals vs. fitted values and 
+this is also approximately the case for the model.  Of note is that all the 
+standardized residuals appear to be within 2 standard deviations of zero.
+
+If the residuals are normal they should lie close to a diagonal line in the Q-Q 
+plot. Again, this is mainly true but there is some deviation at lower values.  
+
+In the plot of residuals vs. leverage, there are some concerns about high 
+leverage points, such as the Maserati Bora; however, the standardized residuals 
+for this point does show it has a large effect despite the potential leverage. 
+Of greater concern is the location of Chrysler Imperial point in relation to the 
+Cook's distance 0.5 contour. Cook's distance measure the effect of deleting a 
+point on the model.  Higher Cook's distances correspond to outliers (high 
+residuals) or high leverage.  Ideally, the Chrysler Imperial requires further
+examination.
+
+Overall, the residuals analyses suggest that, although the model has a high 
+$R^2$ value, there may be missing predictors because the distribution of 
+residuals does not appear entirely random.  However, testing with other 
+variables in the mtcars dataset did nothing to improve the appearance of 
+residuals plots. Additional predictors that could improve the fit do not seem 
+to have been included in the dataset.
+
+## Intepretation of the coefficients and uncertainty in the model
+Coefficient $\beta_{1}$ implies that for an increase of 1 hp the expected fuel 
+consumption increases by $5.92 \times 10^{-6}$ US gallons per mile if all 
+other variables are unchanged.  The same change occurs for each 1 second extra 
+on the $\frac{1}{4}$ mile time.
+Coefficient $\beta_{2}$ implies that for each 1000lb increase in the weight of 
+the car, the expected fuel consumption increases by $1.20 \times 10^{-2}$ US 
+gallons per mile.
+Although these are the expected values, there is uncertainty in these estimates.
+The 95% confidence intervals are $1.99 \times 10^{-6}$ to $9.86 \times 10^{-6}$ 
+for $\beta_{1}$ and $0.89 \times 10^{-2}$  to $1.52 \times 10^{-2}$ for 
+$\beta_{2}$. Separate prediction intervals would need to be calculated for
+predictions using the model with new data.  
+
+## Effect of transmission type
+Unfortunately, the model does not directly address the effect of transmission
+type. As noted in the exploratory data analysis, `am` is correlated with `wt` 
+(0.69) as well as other variables of interest.  In the dataset the 
+weight range for manual transmission cars is 1,500 - 3,500 lbs and for 
+automatics is 2,500 - 4,500 lbs.  The overlap of the two ranges doesn't provide 
+enough data points to try to separate the effect of transmission from weight. 
+Also, outside of the data, the effect of automatic transmissions is consider to
+be primarily due to the increased weight. So even though the transmission isn't
+include the difference between a manual and automatic transmission versions of 
+otherwise identical cars could be predicted using their weights.
+  
+
+\newpage
+
+## Appendix
+
+The color of the points indicates transmission type in all plots. 
+**\textcolor{red}{Red points}** are automatic. 
+**\textcolor{blue}{Blue points}** are manual.  
+&nbsp;  
+
+**Figure 1** Scatterplot and correlation of variable pairs from the `mtcars` dataset  
+
+```{r, fig.height = 9, fig.width = 9, echo = FALSE}
+panel.pearson <- function(x, y, ...) {
+horizontal <- (par("usr")[1] + par("usr")[2]) / 2; 
+vertical <- (par("usr")[3] + par("usr")[4]) / 2; 
+text(horizontal, vertical, format(abs(cor(x,y)), digits=2)) 
+}
+
+pairs(c[,2:12], gap = 0, pch = 16, pty = "m",
+      cex = 0.75, cex.labels = 1, cex.axis = 1, 
+      tcl = -0.25,  mgp =c(0, 0.3 , 0), adj = 0.5,
+      col = rgb(red = (c$am == 0), 
+                green = 0, 
+                blue = (c$am == 1), 
+                alpha = 0.5), 
+      labels = nice_names,
+      upper.panel = panel.pearson)
+```
+
+\newpage
+
+**Figure 2** Residuals of `gpm` vs. other variables after fitting with `hp:qsec`
+
+```{r, echo = FALSE}
+rgpm <- resid(gpm0)
+cyl1 <- lm(data = c, cyl ~ hp:qsec - 1)
+rcyl <- resid(cyl1) 
+rrcyl <- lm(data = c, rgpm ~ rcyl)
+gpm_cyl <- round(cor(rcyl, rgpm),2)
+pcyl <- ggplot(data = c, aes(x = rcyl, y = rgpm)) 
+pcyl <- pcyl + geom_point(col = rgb(red = (c$am == 0),
+                                  green = 0, 
+                                  blue = (c$am == 1), 
+                                  alpha = 0.5),
+                        shape = 16, size = 2) 
+pcyl <- pcyl + geom_abline(intercept = coef(rrcyl)[1], slope = coef(rrcyl)[2])
+pcyl <- pcyl + theme_bw() + ggtitle(paste("cylinders", gpm_cyl, sep = "   ")) + 
+        theme(axis.title = element_blank(), 
+        plot.title = element_text(size = 10, vjust = 0.25))
+```
+
+```{r, echo = FALSE}
+disp1 <- lm(data = c, disp ~ hp:qsec - 1)
+rdisp <- resid(disp1) 
+rrdisp <- lm(data = c, rgpm ~ rdisp)
+gpm_disp <- round(cor(rdisp, rgpm),2)
+pdisp <- ggplot(data = c, aes(x = rdisp, y = rgpm)) 
+pdisp <- pdisp + geom_point(col = rgb(red = (c$am == 0),
+                                  green = 0, 
+                                  blue = (c$am == 1), 
+                                  alpha = 0.5),
+                        shape = 16, size = 2) 
+pdisp <- pdisp + geom_abline(intercept = coef(rrdisp)[1], slope = coef(rrdisp)[2])
+pdisp <- pdisp + theme_bw() + ggtitle(paste("displacement", gpm_disp, sep = "   ")) + 
+         theme(axis.title = element_blank(), 
+         plot.title = element_text(size = 10, vjust = 0.25))
+```
+
+```{r, echo = FALSE}
+drat1 <- lm(data = c, drat ~ hp:qsec - 1)
+rdrat <- resid(drat1) 
+rrdrat <- lm(data = c, rgpm ~ rdrat)
+gpm_drat <- round(cor(rdrat, rgpm),2)
+pdrat <- ggplot(data = c, aes(x = rdrat, y = rgpm)) 
+pdrat <- pdrat + geom_point(col = rgb(red = (c$am == 0),
+                                  green = 0, 
+                                  blue = (c$am == 1), 
+                                  alpha = 0.5),
+                        shape = 16, size = 2) 
+pdrat <- pdrat + geom_abline(intercept = coef(rrdrat)[1], slope = coef(rrdrat)[2])
+pdrat <- pdrat + theme_bw() + ggtitle(paste("rear axle ratio", gpm_drat, sep = "   ")) +
+         theme(axis.title = element_blank(), 
+         plot.title = element_text(size = 10, vjust = 0.25))
+```
+
+```{r, echo = FALSE}
+wt1 <- lm(data = c, wt ~ hp:qsec - 1)
+rwt <- resid(wt1) 
+rrwt <- lm(data = c, rgpm ~ rwt)
+gpm_wt <- round(cor(rwt, rgpm),2)
+pwt <- ggplot(data = c, aes(x = rwt, y = rgpm)) 
+pwt <- pwt + geom_point(col = rgb(red = (c$am == 0),
+                                  green = 0, 
+                                  blue = (c$am == 1), 
+                                  alpha = 0.5),
+                        shape = 16, size = 2) 
+pwt <- pwt + geom_abline(intercept = coef(rrwt)[1], slope = coef(rrwt)[2])
+pwt <- pwt + theme_bw() + ggtitle(paste("weight", gpm_wt, sep = "   ")) +
+       theme(axis.title = element_blank(), 
+       plot.title = element_text(size = 10, vjust = 0.25))
+```
+
+```{r, echo = FALSE}
+vs1 <- lm(data = c, vs ~ hp:qsec - 1)
+rvs <- resid(vs1) 
+rrvs <- lm(data = c, rgpm ~ rvs)
+gpm_vs <- round(cor(rvs, rgpm),2)
+pvs <- ggplot(data = c, aes(x = rvs, y = rgpm)) 
+pvs <- pvs + geom_point(col = rgb(red = (c$am == 0),
+                                  green = 0, 
+                                  blue = (c$am == 1), 
+                                  alpha = 0.5),
+                        shape = 16, size = 2) 
+pvs <- pvs + geom_abline(intercept = coef(rrvs)[1], slope = coef(rrvs)[2])
+pvs <- pvs + theme_bw() + ggtitle(paste("cylinder configuration", gpm_vs, sep = "   ")) +
+       theme(axis.title = element_blank(), 
+       plot.title = element_text(size = 10, vjust = 0.25))
+```
+
+```{r, echo = FALSE}
+am1 <- lm(data = c, am ~ hp:qsec - 1)
+ram <- resid(am1) 
+rram <- lm(data = c, rgpm ~ ram)
+gpm_am <- round(cor(ram, rgpm),2)
+pam <- ggplot(data = c, aes(x = ram, y = rgpm)) 
+pam <- pam + geom_point(col = rgb(red = (c$am == 0),
+                                  green = 0, 
+                                  blue = (c$am == 1), 
+                                  alpha = 0.5),
+                        shape = 16, size = 2) 
+pam <- pam + geom_abline(intercept = coef(rram)[1], slope = coef(rram)[2])
+pam <- pam + theme_bw() + ggtitle(paste("transmission", gpm_am, sep = "   ")) +
+       theme(axis.title = element_blank(), 
+       plot.title = element_text(size = 10, vjust = 0.25))
+```
+
+```{r, echo = FALSE}
+gear1 <- lm(data = c, gear ~ hp:qsec - 1)
+rgear <- resid(gear1) 
+rrgear <- lm(data = c, rgpm ~ rgear)
+gpm_gear <- round(cor(rgear, rgpm),2)
+pgear <- ggplot(data = c, aes(x = rgear, y = rgpm)) 
+pgear <- pgear + geom_point(col = rgb(red = (c$am == 0),
+                                  green = 0, 
+                                  blue = (c$am == 1), 
+                                  alpha = 0.5),
+                        shape = 16, size = 2) 
+pgear <- pgear + geom_abline(intercept = coef(rrgear)[1], slope = coef(rrgear)[2])
+pgear <- pgear + theme_bw() + ggtitle(paste("gears", gpm_gear, sep = "   ")) +
+         theme(axis.title = element_blank(), 
+         plot.title = element_text(size = 10, vjust = 0.25))
+```
+
+```{r, echo = FALSE}
+carb1 <- lm(data = c, carb ~ hp:qsec - 1)
+rcarb <- resid(carb1) 
+rrcarb <- lm(data = c, rgpm ~ rcarb)
+gpm_carb <- round(cor(rcarb, rgpm),2)
+pcarb <- ggplot(data = c, aes(x = rcarb, y = rgpm)) 
+pcarb <- pcarb + geom_point(col = rgb(red = (c$am == 0),
+                                  green = 0, 
+                                  blue = (c$am == 1), 
+                                  alpha = 0.5),
+                        shape = 16, size = 2) 
+pcarb <- pcarb + geom_abline(intercept = coef(rrcarb)[1], slope = coef(rrcarb)[2])
+pcarb <- pcarb + theme_bw() + ggtitle(paste("carburettors", gpm_carb, sep = "   ")) +
+         theme(axis.title = element_blank(), 
+         plot.title = element_text(size = 10, vjust = 0.25))
+```
+
+```{r, fig.height = 9, echo = FALSE}
+grid.arrange(pcyl, pdisp, pdrat, pwt, pvs, pam, pgear, pcarb, ncol = 2)
+```
+
+\newpage
+
+**Figure 3** Residuals analysis of the final model
+
+```{r, fig.height = 3.3, fig.width = 3.3, echo = FALSE}
+plot(gpm2, pch = 16)
+```
+
+
